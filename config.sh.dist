@@ -1,0 +1,49 @@
+# REQUIRED:
+# CiviCRM version to upgrade to.
+# For example: "4.2.19"
+TARGET_VERSION=""
+
+# REQUIRED:
+# Drupal root directory.
+SITEDIR=""
+
+# REQUIRED by recover.sh only
+# Full system path to *.sql.gz file which should be used 
+# when recovering the Drupal database.
+DRUPAL_SQL_GZ=""
+
+# REQUIRED by recover.sh only
+# Full system path to *.sql.gz file which should be used 
+# when recovering the CiviCRM database.
+CIVICRM_SQL_GZ=""
+
+# REQUIRED by recover.sh only
+# Password for MySQL root user.
+MYSQL_ROOT_PASSWORD=""
+
+# OPTIONAL: 
+# List of modules to be disabled and re-enabled for a CiviCRM
+# upgrade, delimited by spaces and/or commas.
+# IMPORTANT: Besides all modules (and Features) that depend on 
+# CiviCRM, also include all modules (and Features) that depend 
+# on those modules, and so on. This is required because this 
+# string will be used for re-enabling modules after the the
+# upgrade completes.
+CIVICRM_MODULES=""
+
+# OPTIONAL: 
+# Bash command to correct file permissions after upgrade.
+# For example: "chmod -R a+w $SITEDIR/sites/default/files"
+CHMOD_CMD=""
+
+# OPTIONAL
+# Name of Drupal database to restore to, in cases where recover.sh
+# is unable to get the database name using drush (as can happen if 
+# a failed upgrade breaks your site).
+FALLBACK_DRUPAL_DB_NAME=""
+
+# OPTIONAL
+# Name of CiviCRM database to restore to, in cases where recover.sh
+# is unable to get the database name using drush (as can happen if 
+# a failed upgrade breaks your site).
+FALLBACK_CIVICRM_DB_NAME=""
