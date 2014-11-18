@@ -133,30 +133,38 @@ do_upgrade() {
 
   echo "Upgrading to ${UPGRADE_VERSION}"
   
-  TARBALL="civicrm-${UPGRADE_VERSION}-drupal6.tar.gz"
+  if [[ `print_drupal_version` == "6" ]]; then
+    DRUPAL_6_STRING="6"
+  else
+    DRUPAL_6_STRING=""
+  fi
+
+  TARBALL="civicrm-${UPGRADE_VERSION}-drupal${DRUPAL_6_STRING}.tar.gz"
   
   echo "Fetching source for ${UPGRADE_VERSION}"
-  pushd ${CONFIGDIR}
+  pushd ${CONFIGDIR} > /dev/null
   wget -nc http://sourceforge.net/projects/civicrm/files/civicrm-stable/${UPGRADE_VERSION}/${TARBALL}/download -O ${TARBALL}
   cp ${TARBALL} ${SITEDIR}/sites/all/modules/.
   echo "cp ${TARBALL} ${SITEDIR}/sites/all/modules/."
   ls -al ${SITEDIR}/sites/all/modules/${TARBALL}
   
   echo "Replacing CiviCRM with source for ${UPGRADE_VERSION}"
-  pushd $MODULEDIR
+  pushd $MODULEDIR > /dev/null
   rm -rf civicrm
   echo "tar xfz ${TARBALL}" 
   tar xfz ${TARBALL}
   rm ${TARBALL}
       
-  # Drush upgrade is broken in 4.2, so if we're upgrading to
-  # 4.2.x, replace 4.2 drush file with one from 4.3
-  if version_compare $UPGRADE_VERSION ">=" "4.2.0" && version_compare $UPGRADE_VERSION "<" "4.3.0"; then
-    echo "Copying civicrm.drush.inc from 4.3.9 (because it's broken in 4.2)."
-    cp ${CONFIGDIR}/civicrm.drush.inc-4.3.9 ${SITEDIR}/sites/all/modules/civicrm/drupal/drush/civicrm.drush.inc
+  # Drush upgrade is broken in 4.2 for Drupal 6, so if we're upgrading to
+  # 4.2.x on Drupal 6, replace 4.2 drush file with one from 4.3
+  if [[ `print_drupal_version` == "6" ]]; then
+    if version_compare $UPGRADE_VERSION ">=" "4.2.0" && version_compare $UPGRADE_VERSION "<" "4.3.0"; then
+      echo "Copying civicrm.drush.inc from 4.3.9 (because it's broken in 4.2)."
+      cp ${CONFIGDIR}/civicrm.drush.inc-4.3.9 ${SITEDIR}/sites/all/modules/civicrm/drupal/drush/civicrm.drush.inc
+    fi
   fi
 
-  pushd $SITEDIR
+  pushd $SITEDIR > /dev/null
 
   echo "Calling drush -y civicrm-upgrade-db, to upgrade to ${UPGRADE_VERSION}..."
   drush -y civicrm-upgrade-db
@@ -173,7 +181,7 @@ chmod_files() {
 # as indicated by $TYPE
 #
 # Parameter: $TYPE Either (case-insensitive) 'drupal' or 'civicrm'
-get_db_name() {
+print_db_name() {
   TYPE=`echo $1 | tr '[:upper:]' '[:lower:]'`
   case $TYPE in
     'drupal')
@@ -183,6 +191,31 @@ get_db_name() {
       DRUSH_CMD='civicrm-sql-connect'
     ;;
   esac
-  cd $SITEDIR
+  pushd $SITEDIR > /dev/null
   for i in $(drush $DRUSH_CMD); do echo $i | grep '\--database=' | awk -F '=' '{ print $2 }'; done;
+  popd > /dev/null
+}
+
+# Determine whether the given drush command exists
+drush_command_exists() {
+  DRUSH_COMMAND=$1
+  if [[ "${DRUSH_COMMAND}x" == "x" ]]; then
+    echo "Missing required DRUSH_COMMAND"
+    echo "Usage: drush_command_exists DRUSH_COMMAND"
+    echo "  DRUSH_COMMAND: Drush command to test for"
+    return 1
+  fi
+
+  pushd $SITEDIR > /dev/null
+  drush help $DRUSH_COMMAND > /dev/null 2>&1
+  RETURN=$?
+  popd > /dev/null
+  return $RETURN
+}
+
+# Get the current major Drupal version (e.g., 6, 7, 8)
+print_drupal_version() {
+  pushd $SITEDIR
+  drush status | grep "Drupal version" | awk '{ print $NF }' | awk -F '.' '{ print $1 }'
+  popd
 }

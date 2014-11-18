@@ -35,8 +35,8 @@ if version_compare $TARGET_VERSION "=" "4.1.0"; then
   exit 1
 fi
 
-DRUPAL_DB=`get_db_name drupal`
-CIVICRM_DB=`get_db_name civicrm`
+DRUPAL_DB=`print_db_name drupal`
+CIVICRM_DB=`print_db_name civicrm`
 
 if [[ "${DRUPAL_DB}x" == "x" || "${CIVICRM_DB}x" == "x" ]]; then
   echo
@@ -106,13 +106,15 @@ pushd $SITEDIR
 drush dis -y $CIVICRM_MODULES 
 popd
 
-# Interim upgrade at 4.1.6 required when starting at lower versions.
+# Interim upgrade at 4.1.1 required when starting at lower versions.
 INTERIM_VERSION="4.1.1"
 if version_compare $INTERIM_VERSION ">" $CURRENT_VERSION && version_compare $TARGET_VERSION ">=" $INTERIM_VERSION; then 
   echo "Current version ${CURRENT_VERSION} is below $INTERIM_VERSION. Initiating interim upgrade to $INTERIM_VERSION, on the way to ${TARGET_VERSION}."
 
-  echo "Modifying civicrm.settings.php to match ${INTERIM_VERSION}"
-  sed -i "s/'Drupal'/'Drupal6'/g" ${SITEDIR}/sites/default/civicrm.settings.php
+  if [[ `print_drupal_version` == "6" ]]; then
+    echo "Modifying civicrm.settings.php to match ${INTERIM_VERSION}"
+    sed -i "s/'Drupal'/'Drupal6'/g" ${SITEDIR}/sites/default/civicrm.settings.php
+  fi
 
   do_upgrade $INTERIM_VERSION 
   INTERIM_VERSION_DONE=$INTERIM_VERSION
@@ -160,8 +162,10 @@ echo "drush cc all"
 drush cc all
 
 # Revert features. Required when $CIVICRM_MODULES included any Features.
-echo "Revert all features"
-drush -y features-revert-all
+if drush_command_exists 'features-revert-all'; then
+  echo "Revert all features"
+  drush -y features-revert-all
+fi
 
 # Clear cache again. FIXME: is this necessary?
 echo "drush cc all"
