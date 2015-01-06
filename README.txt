@@ -23,9 +23,8 @@ settings from config.sh; comments in config.sh indicate
 which settings are used for recover.sh, and whether they're
 required or optional.
 
-Note the following requirements:
-* CiviCRM code is handled by git, and has not been
-  committed since running upgrade.sh.
-* CiviCRM code is at [Drupal root]/sites/all/modules/civicrm
-* zcat
-* pv
+Note the following requirements for recovery.sh:
+  * CiviCRM code is handled by git, and has not been
+    committed since running upgrade.sh.
+  * zcat
+  * pv

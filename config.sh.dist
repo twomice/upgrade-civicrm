@@ -1,10 +1,15 @@
 # REQUIRED:
+# The version of the upgrade_civicrm package 
+# for which this config file is intended.
+CONFIG_VERSION="2"
+
+# REQUIRED:
 # CiviCRM version to upgrade to.
 # For example: "4.2.19"
 TARGET_VERSION=""
 
 # REQUIRED:
-# Drupal root directory.
+# Drupal site directory containing civicrm.settings.php
 SITEDIR=""
 
 # REQUIRED by recover.sh only
@@ -47,3 +52,8 @@ FALLBACK_DRUPAL_DB_NAME=""
 # is unable to get the database name using drush (as can happen if 
 # a failed upgrade breaks your site).
 FALLBACK_CIVICRM_DB_NAME=""
+
+# OPTIONAL
+# Full system path to CiviCRM directory. Used by recover.sh
+# when it's unable to determine the path programmatically.
+FALLBACK_CIVICRM_DIRECTORY=""

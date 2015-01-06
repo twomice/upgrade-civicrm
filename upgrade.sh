@@ -4,13 +4,13 @@
 # This line determines the location of the script even when called from a bash
 # prompt in another directory (in which case `pwd` will point to that directory
 # instead of the one containing this script).  See http://stackoverflow.com/a/246128
-CONFIGDIR="$( cd -P "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/"   
+MYDIR="$( cd -P "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/"   
 
 # Source config file or exit.
-if [ -e ${CONFIGDIR}/config.sh ]; then
-  source ${CONFIGDIR}/config.sh
+if [ -e ${MYDIR}/config.sh ]; then
+  source ${MYDIR}/config.sh
 else
-  echo "Could not find required config file at ${CONFIGDIR}/config.sh. Exiting."
+  echo "Could not find required config file at ${MYDIR}/config.sh. Exiting."
   exit
 fi
 
@@ -20,12 +20,15 @@ if [[ "${TARGET_VERSION}x" == "x" || "${SITEDIR}x" == "x" ]]; then
 fi
 
 # Include functions script.
-if [[ -e ${CONFIGDIR}/functions.sh ]]; then
-  source ${CONFIGDIR}/functions.sh
+if [[ -e ${MYDIR}/functions.sh ]]; then
+  source ${MYDIR}/functions.sh
 else 
-  echo "Could not find required functions file at ${CONFIGDIR}/functions.sh. Exiting."
+  echo "Could not find required functions file at ${MYDIR}/functions.sh. Exiting."
   exit
 fi
+
+# Confirm that the config file version matches the code version.
+confirm_config_version
 
 # Drush upgrade to 4.1.0 is broken, so refuse to handle it.
 if version_compare $TARGET_VERSION "=" "4.1.0"; then
@@ -78,42 +81,52 @@ case $CONTINUE in
     ;;
 esac
 
-echo "Securing sudo privileges..."
-sudo echo "Thank you."
+echo "Depending on your system configuration, this script may require"
+echo "sudo access. Would you like to prompt for sudo access now? [yes or no]"
+read GET_SUDO
+case $GET_SUDO in
+  [yY] | [yY][Ee][Ss] )
+    echo "Securing sudo privileges..."
+    sudo echo "Thank you."
+    ;;
+   *)
+    echo "You may be prompted for sudo access later in this script."
+    ;;
+esac
 
 # Run CHMOD_CMD if any.
 chmod_files
 
 # Determine current CiviCRM version.
-CURRENT_VERSION=`drush -r $SITEDIR pml | grep '(civicrm)' | awk '{ print $NF }'`
+CURRENT_VERSION=$(print_civicrm_version)
 
 echo "CURRENT_VERSION: $CURRENT_VERSION"
 echo "TARGET_VERSION: $TARGET_VERSION"
-if ! version_compare $TARGET_VERSION $CURRENT_VERSION ; then
+if ! version_compare $TARGET_VERSION ">" $CURRENT_VERSION ; then
   echo "Target version ${TARGET_VERSION} is not greater than current version ${CURRENT_VERSION}. Nothing to upgrade. Exiting."
   exit;
 fi
 
-MODULEDIR="${SITEDIR}/sites/all/modules/"
-
 echo "Backing up civicrm.settings.php to civicrm.settings.php-preupgrade"
-cp ${SITEDIR}/sites/default/civicrm.settings.php{,-preupgrade}
+cp ${SITEDIR}/civicrm.settings.php{,-preupgrade}
+
+# Store durable values so we only have to check them once.
+DRUPAL_VERSION=$(print_drupal_version)
+CIVICRM_DIRECTORY=$(print_civicrm_directory)
 
 echo "======================"
 echo "Begin CiviCRM upgrade to ${TARGET_VERSION}"
 echo "Disabling CiviCRM-related modules."
-pushd $SITEDIR
-drush dis -y $CIVICRM_MODULES 
-popd
+smart_drush dis -y $CIVICRM_MODULES 
 
 # Interim upgrade at 4.1.1 required when starting at lower versions.
 INTERIM_VERSION="4.1.1"
 if version_compare $INTERIM_VERSION ">" $CURRENT_VERSION && version_compare $TARGET_VERSION ">=" $INTERIM_VERSION; then 
   echo "Current version ${CURRENT_VERSION} is below $INTERIM_VERSION. Initiating interim upgrade to $INTERIM_VERSION, on the way to ${TARGET_VERSION}."
 
-  if [[ `print_drupal_version` == "6" ]]; then
+  if [[ "$DRUPAL_VERSION" == "6" ]]; then
     echo "Modifying civicrm.settings.php to match ${INTERIM_VERSION}"
-    sed -i "s/'Drupal'/'Drupal6'/g" ${SITEDIR}/sites/default/civicrm.settings.php
+    sed -i "s/'Drupal'/'Drupal6'/g" ${SITEDIR}/civicrm.settings.php
   fi
 
   do_upgrade $INTERIM_VERSION 
@@ -128,11 +141,11 @@ if version_compare $INTERIM_VERSION ">" $CURRENT_VERSION && version_compare $TAR
   # Rectify any blank label values.
   # Reference: http://forum.civicrm.org/index.php/topic,32664.msg139364.html#msg139364
   echo "Fixing empty price option labels"
-  drush civicrm-sql-query "UPDATE civicrm_option_value set label = 'Unknown' WHERE label = '';"
+  smart_drush ev "civicrm_initialize(); CRM_Core_DAO::executeQuery(\"UPDATE civicrm_option_value set label = 'Unknown' WHERE label = ''\");"
 
   echo "Modifying civicrm.settings.php to match ${INTERIM_VERSION}"
-  echo "require_once 'CRM/Core/ClassLoader.php';" >> ${SITEDIR}/sites/default/civicrm.settings.php;
-  echo "CRM_Core_ClassLoader::singleton()->register();" >> ${SITEDIR}/sites/default/civicrm.settings.php
+  echo "require_once 'CRM/Core/ClassLoader.php';" >> ${SITEDIR}/civicrm.settings.php;
+  echo "CRM_Core_ClassLoader::singleton()->register();" >> ${SITEDIR}/civicrm.settings.php
 
   do_upgrade $INTERIM_VERSION 
   INTERIM_VERSION_DONE=$INTERIM_VERSION
@@ -146,30 +159,30 @@ if version_compare $INTERIM_VERSION_DONE "<" $TARGET_VERSION; then
   do_upgrade $TARGET_VERSION
 fi
 
-echo "drush cc -y all"
-drush cc -y all
+echo "smart_drush cc -y all"
+smart_drush cc -y all
 
 echo "Clear CiviCRM templates and ConfigAndLog files"
-sudo rm -rf ${SITEDIR}/sites/default/files/civicrm/templates_c
-sudo rm -rf ${SITEDIR}/sites/default/files/civicrm/ConfigAndLog
+sudo_rm ${SITEDIR}/files/civicrm/templates_c
+sudo_rm ${SITEDIR}/files/civicrm/ConfigAndLog
 
 # Re-enable any disabled modules.
 echo "Re-enabling CiviCRM-related modules"
-drush en -y $CIVICRM_MODULES
+smart_drush en -y $CIVICRM_MODULES
 
 # Clear cache; this is sometimes helpful before reverting features.
-echo "drush cc all"
-drush cc all
+echo "smart_drush cc all"
+smart_drush cc all
 
 # Revert features. Required when $CIVICRM_MODULES included any Features.
 if drush_command_exists 'features-revert-all'; then
   echo "Revert all features"
-  drush -y features-revert-all
+  smart_drush -y features-revert-all
 fi
 
 # Clear cache again. FIXME: is this necessary?
-echo "drush cc all"
-drush cc all
+echo "smart_drush cc all"
+smart_drush cc all
 
 # Run CHMOD_CMD if any.
 chmod_files

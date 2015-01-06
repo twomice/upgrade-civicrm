@@ -2,15 +2,26 @@
 # This line determines the location of the script even when called from a bash
 # prompt in another directory (in which case `pwd` will point to that directory
 # instead of the one containing this script).  See http://stackoverflow.com/a/246128
-CONFIGDIR="$( cd -P "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/"   
+MYDIR="$( cd -P "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/"   
 
 # Source config file or exit.
-if [ -e ${CONFIGDIR}/config.sh ]; then
-  source ${CONFIGDIR}/config.sh
+if [ -e ${MYDIR}/config.sh ]; then
+  source ${MYDIR}/config.sh
 else
-  echo "Could not find required config file at ${CONFIGDIR}/config.sh. Exiting."
+  echo "Could not find required config file at ${MYDIR}/config.sh. Exiting."
   exit
 fi
+
+# Include functions script.
+if [[ -e ${MYDIR}/functions.sh ]]; then
+  source ${MYDIR}/functions.sh
+else 
+  echo "Could not find required functions file at ${MYDIR}/functions.sh. Exiting."
+  exit
+fi
+
+# Confirm that the config file version matches the code version.
+confirm_config_version
 
 # Confirm presense of required settings.
 if [[ "${SITEDIR}x" == "x" || "${DRUPAL_SQL_GZ}x" == "x" || "${CIVICRM_SQL_GZ}x" == "x" ]]; then
@@ -31,14 +42,6 @@ fi
 if [[ "$FILE_MISSING" == "1" ]]; then
   echo "Exiting."
   exit 1
-fi
-
-# Include functions script.
-if [[ -e ${CONFIGDIR}/functions.sh ]]; then
-  source ${CONFIGDIR}/functions.sh
-else 
-  echo "Could not find required functions file at ${CONFIGDIR}/functions.sh. Exiting."
-  exit
 fi
 
 # Determine database names.
@@ -114,13 +117,18 @@ zcat ${CIVICRM_SQL_GZ} | pv -er -p -s $CIVICRM_SQL_GZ_SIZE -N "CiviCRM DB restor
 
 # Restore civicrm files using git.
 echo "Restoring CiviCRM files"
-cd $SITEDIR
+CIVICRM_DIRECTORY=$(print_civicrm_directory)
+if [[ -z $CIVICRM_DIRECTORY ]]; then
+  CIVICRM_DIRECTORY=$FALLBACK_CIVICRM_DIRECTORY
+fi
+
+cd $SITEDIR/../..
 git reset HEAD sites/all/modules/civicrm
 rm -rf sites/all/modules/civicrm
 git checkout -- sites/all/modules/civicrm 
 
-sudo rm -rf sites/default/files/civicrm/templates_c/*
-sudo rm -rf sites/default/files/civicrm/ConfigAndLog/*
+sudo_rm -rf sites/default/files/civicrm/templates_c/*
+sudo_rm -rf sites/default/files/civicrm/ConfigAndLog/*
 
 # Restore civicrm.settings.php file from preupgrade copy.
 cp sites/default/civicrm.settings.php{-preupgrade,}

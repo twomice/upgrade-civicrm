@@ -57,12 +57,12 @@ version_compare() {
 
       # If the version1 part is greater than its corresponding
       # version2 part, return 0.
-      if ((10#${VERSION1[i]} > 10#${VERSION2[i]})); then
+      if [[ 10#${VERSION1[i]} > 10#${VERSION2[i]} ]]; then
         RESULT=2
         break;
       # If the version1 part is less than its corresponding
       # version2 part, return 1.
-      elif ((10#${VERSION1[i]} < 10#${VERSION2[i]})); then
+      elif [[ 10#${VERSION1[i]} < 10#${VERSION2[i]} ]]; then
         RESULT=0
         break;
       fi
@@ -132,42 +132,43 @@ do_upgrade() {
   fi
 
   echo "Upgrading to ${UPGRADE_VERSION}"
-  
-  if [[ `print_drupal_version` == "6" ]]; then
-    DRUPAL_6_STRING="6"
-  else
-    DRUPAL_6_STRING=""
-  fi
 
-  TARBALL="civicrm-${UPGRADE_VERSION}-drupal${DRUPAL_6_STRING}.tar.gz"
-  
+
+  mkdir -p ${MYDIR}/downloads
+  EXTRACT_DIRECTORY=$(mktemp -d $MYDIR/downloads/extract_XXX)
+
   echo "Fetching source for ${UPGRADE_VERSION}"
-  pushd ${CONFIGDIR} > /dev/null
-  wget -nc http://sourceforge.net/projects/civicrm/files/civicrm-stable/${UPGRADE_VERSION}/${TARBALL}/download -O ${TARBALL}
-  cp ${TARBALL} ${SITEDIR}/sites/all/modules/.
-  echo "cp ${TARBALL} ${SITEDIR}/sites/all/modules/."
-  ls -al ${SITEDIR}/sites/all/modules/${TARBALL}
-  
+  download_and_extract_tarball $UPGRADE_VERSION $EXTRACT_DIRECTORY
+
   echo "Replacing CiviCRM with source for ${UPGRADE_VERSION}"
-  pushd $MODULEDIR > /dev/null
-  rm -rf civicrm
-  echo "tar xfz ${TARBALL}" 
-  tar xfz ${TARBALL}
-  rm ${TARBALL}
-      
+  echo "rm -rf $CIVICRM_DIRECTORY"
+  rm -rf $CIVICRM_DIRECTORY
+  mv $EXTRACT_DIRECTORY/civicrm $CIVICRM_DIRECTORY
+  cd $MYDIR
+  echo "ls $CIVICRM_DIRECTORY"
+  ls $CIVICRM_DIRECTORY
+  rm -rf $EXTRACT_DIRECTORY
+   
   # Drush upgrade is broken in 4.2 for Drupal 6, so if we're upgrading to
   # 4.2.x on Drupal 6, replace 4.2 drush file with one from 4.3
-  if [[ `print_drupal_version` == "6" ]]; then
+  if [[ "$DRUPAL_VERSION" == "6" ]]; then
     if version_compare $UPGRADE_VERSION ">=" "4.2.0" && version_compare $UPGRADE_VERSION "<" "4.3.0"; then
       echo "Copying civicrm.drush.inc from 4.3.9 (because it's broken in 4.2)."
-      cp ${CONFIGDIR}/civicrm.drush.inc-4.3.9 ${SITEDIR}/sites/all/modules/civicrm/drupal/drush/civicrm.drush.inc
+      cp ${MYDIR}/civicrm.drush.inc-4.3.9 ${CIVICRM_DIRECTORY}/drupal/drush/civicrm.drush.inc
     fi
   fi
 
-  pushd $SITEDIR > /dev/null
-
   echo "Calling drush -y civicrm-upgrade-db, to upgrade to ${UPGRADE_VERSION}..."
-  drush -y civicrm-upgrade-db
+  smart_drush -y civicrm-upgrade-db
+  RESULT=$?
+  if [[ "$RESULT" != "0" ]]; then
+    echo
+    echo 'ERROR: The command `drush -y civicrm-upgrade-db` failed.' 
+    echo 'Please visit [site-url]/civicrm/upgrade?reset=1'
+    echo 'and perform the upgrade manually.'
+    echo -n 'Strike enter to continue when the in-browser upgrade is complete ...'
+    read CONTINUE
+  fi 
 } 
 
 # Run the command defined in CHMOD_CMD in config.sh, if any.
@@ -185,15 +186,12 @@ print_db_name() {
   TYPE=`echo $1 | tr '[:upper:]' '[:lower:]'`
   case $TYPE in
     'drupal')
-      DRUSH_CMD='sql-connect'
+      smart_drush status | grep "Database name" | awk '{ print $NF }' 
     ;;
     'civicrm')
-      DRUSH_CMD='civicrm-sql-connect'
+      smart_drush ev 'civicrm_initialize(); echo CRM_Core_DAO::singleValueQuery("select database()"); '
     ;;
   esac
-  pushd $SITEDIR > /dev/null
-  for i in $(drush $DRUSH_CMD); do echo $i | grep '\--database=' | awk -F '=' '{ print $2 }'; done;
-  popd > /dev/null
 }
 
 # Determine whether the given drush command exists
@@ -206,16 +204,127 @@ drush_command_exists() {
     return 1
   fi
 
-  pushd $SITEDIR > /dev/null
-  drush help $DRUSH_COMMAND > /dev/null 2>&1
+  smart_drush help $DRUSH_COMMAND > /dev/null 2>&1
   RETURN=$?
-  popd > /dev/null
   return $RETURN
 }
 
 # Get the current major Drupal version (e.g., 6, 7, 8)
 print_drupal_version() {
-  pushd $SITEDIR
-  drush status | grep "Drupal version" | awk '{ print $NF }' | awk -F '.' '{ print $1 }'
-  popd
+  smart_drush status | grep "Drupal version" | awk '{ print $NF }' | awk -F '.' '{ print $1 }'
+}
+
+# Get the current CiviCRM version 
+print_civicrm_version() {
+  smart_drush ev "civicrm_initialize(); require_once('CRM/Utils/System.php'); echo CRM_Utils_System::version();" 
+}
+
+# Recursively remove a given file or directory, using sudo only if necessary.
+sudo_rm() {
+  # Check for unwritable files; if found, we'll use sudo to remove them
+  RM=$1
+  if [[ -e $RM ]]; then
+    FOUND=$(find $RM ! -writable 2>/dev/null | wc -l); 
+    if [[ "$FOUND" > "0" ]]; then 
+      sudo rm -rf $RM
+    else
+      rm -rf $RM
+    fi
+  fi
+}
+
+function print_civicrm_directory() {
+  FILENAME=$(smart_drush sqlq "select filename from system where name='civicrm'" | tail -n 1)
+  echo $(print_drush_status_value "Drupal root")/$(dirname $(dirname $FILENAME))
+}
+
+print_drush_status_value() {
+  # Ensure sufficient arguments.
+  if [ "$#" -ne 1 ]; then
+    echo "ERROR: Missing required arguments for $FUNCNAME"
+    echo "Usage: $FUNCNAME DRUSH_STATUS_LABEL"
+    echo "  DRUSH_STATUS_LABEL: Full case-sensitive label from the desired"
+    echo '    `drush status` line'
+    exit 1
+  fi
+
+  LABEL=$1
+
+  # Set $COLUMNS value to something large. We need this because drush will wrap
+  # based on this value, and if it's too small (e.g., when calling directly over
+  # ssh without an interactive terminal) that can break our grep|awk magic.
+  ORIGINAL_COLUMNS_VALUE=$COLUMNS
+  export COLUMNS=300
+
+  smart_drush status | grep -P "${LABEL}\s*:" | awk '{ print $NF }'
+
+  # Return $COLUMNS to its original value.
+  export COLUMNS=$ORIGINAL_COLUMNS_VALUE
+}
+
+smart_drush() {
+  pushd $SITEDIR > /dev/null
+  drush "$@"
+  popd > /dev/null
+}
+
+
+download_and_extract_tarball() {
+  UPGRADE_VERSION=$1
+  EXTRACT_DIRECTORY=$2
+
+  if [[ "$#" != "2" ]]; then
+    echo "ERROR: Missing required arguments"
+    echo "Usage: $FUNCNAME UPGRADE_VERSION EXTRACT_DIRECTORY"
+    return 1
+  fi
+
+  MAX_DOWNLOAD_ATTEMPTS=2
+  DOWNLOAD_ATTEMPTS=0
+  DOWNLOAD_SUCCESSFUL=0
+  
+  if [[ "$DRUPAL_VERSION" == "6" ]]; then
+    DRUPAL_6_STRING="6"
+  else
+    DRUPAL_6_STRING=""
+  fi
+
+  TARBALL="civicrm-${UPGRADE_VERSION}-drupal${DRUPAL_6_STRING}.tar.gz"
+
+  while [[ "$DOWNLOAD_ATTEMPTS" < "$MAX_DOWNLOAD_ATTEMPTS" && "$DOWNLOAD_SUCCESSFUL" == "0" ]]; do
+    cd ${MYDIR}/downloads
+    wget -nc http://sourceforge.net/projects/civicrm/files/civicrm-stable/${UPGRADE_VERSION}/${TARBALL}/download -O ${TARBALL}
+    # Increment DOWNLOAD_ATTEMPTS counter.
+    DOWNLOAD_ATTEMPTS=$((DOWNLOAD_ATTEMPTS+1))
+
+    cp ${TARBALL} $EXTRACT_DIRECTORY
+    cd $EXTRACT_DIRECTORY
+    echo "In $EXTRACT_DIRECTORY: tar xfz ${TARBALL}"
+    tar xfz ${TARBALL}
+    RESULT=$?
+    if [[ "$RESULT" == "0" ]]; then
+      DOWNLOAD_SUCCESSFUL=1
+    else
+      rm -f ${MYDIR}/downloads/${TARBALL}
+    fi
+  done
+  if [[ "$DOWNLOAD_SUCCESSFUL" == "0" ]]; then
+    echo "ERROR: Tarball ${TARBALL} could not download successfully"
+    echo "after ${DOWNLOAD_ATTEMPTS} attempts. Exiting."
+    exit 1
+  fi
+}
+
+# Confirm that the config file version matches the code version.
+confirm_config_version() {
+  CODE_VERSION=2
+  if [[ "$CONFIG_VERSION" != "$CODE_VERSION" ]]; then
+    echo "ERROR: The variable CONFIG_VERSION is either missing"
+    echo "from config.sh or is set to the wrong value. The"
+    echo "correct value for this codebase is ${CODE_VERSION}."
+    echo "HINT: If you've recently upgraded these scripts,"
+    echo "you'll want to consult config.sh.dist for the latest"
+    echo "configuration options."
+    exit 1
+  fi
 }
