@@ -81,18 +81,7 @@ case $CONTINUE in
     ;;
 esac
 
-echo "Depending on your system configuration, this script may require"
-echo "sudo access. Would you like to prompt for sudo access now? [yes or no]"
-read GET_SUDO
-case $GET_SUDO in
-  [yY] | [yY][Ee][Ss] )
-    echo "Securing sudo privileges..."
-    sudo echo "Thank you."
-    ;;
-   *)
-    echo "You may be prompted for sudo access later in this script."
-    ;;
-esac
+get_sudo
 
 # Run CHMOD_CMD if any.
 chmod_files
