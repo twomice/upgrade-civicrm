@@ -2,7 +2,7 @@
 # This line determines the location of the script even when called from a bash
 # prompt in another directory (in which case `pwd` will point to that directory
 # instead of the one containing this script).  See http://stackoverflow.com/a/246128
-MYDIR="$( cd -P "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/"   
+MYDIR="$( cd -P "$( dirname "$(readlink -f "${BASH_SOURCE[0]}")" )" && pwd )/"
 
 # Source config file or exit.
 if [ -e ${MYDIR}/config.sh ]; then
