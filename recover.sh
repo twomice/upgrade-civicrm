@@ -93,8 +93,34 @@ case $CONTINUE in
 esac
 
 # Get sudo privileges.
-echo "Securing sudo privileges..."
-sudo echo "Thank you."
+get_sudo
+
+# Restore civicrm files using git.
+echo "Restoring CiviCRM files"
+CIVICRM_DIRECTORY=$FALLBACK_CIVICRM_DIRECTORY
+if [[ -z $CIVICRM_DIRECTORY || ! -d $CIVICRM_DIRECTORY ]]; then
+  echo "ERROR: Cannot determine CiviCRM directory path, or the directory"
+  echo "was not found. Please check the value of FALLBACK_CIVICRM_DIRECTORY"
+  echo "in config.sh"
+  exit 1
+fi
+
+CIVICRM_DIRNAME=$(basename $CIVICRM_DIRECTORY)
+
+cd ${CIVICRM_DIRECTORY}
+cd ..
+git reset HEAD ${CIVICRM_DIRNAME} 
+rm -rf ${CIVICRM_DIRNAME}
+git checkout -- ${CIVICRM_DIRNAME} 
+
+sudo_rm -rf ${SITEDIR}/files/civicrm/templates_c/*
+sudo_rm -rf ${SITEDIR}/files/civicrm/ConfigAndLog/*
+
+# Restore civicrm.settings.php file from preupgrade copy.
+cp ${SITEDIR}/civicrm.settings.php{-preupgrade,}
+
+# Run CHMOD_CMD if any.
+chmod_files
 
 # Drop existing databases.
 echo "Dropping databases"
@@ -114,25 +140,4 @@ CIVICRM_SQL_GZ_SIZE=`gzip -l $CIVICRM_SQL_GZ | awk '{ print $2 }' | tail -n1`
 # Piping zcat is usually faster per file than using the unzipped content directly.
 zcat ${DRUPAL_SQL_GZ} | pv -er -p -s $DRUPAL_SQL_GZ_SIZE -N "Drupal DB restore" | mysql -u root -p${MYSQL_ROOT_PASSWORD} -D ${DRUPAL_DB}
 zcat ${CIVICRM_SQL_GZ} | pv -er -p -s $CIVICRM_SQL_GZ_SIZE -N "CiviCRM DB restore" | mysql -u root -p${MYSQL_ROOT_PASSWORD} -D ${CIVICRM_DB}
-
-# Restore civicrm files using git.
-echo "Restoring CiviCRM files"
-CIVICRM_DIRECTORY=$(print_civicrm_directory)
-if [[ -z $CIVICRM_DIRECTORY ]]; then
-  CIVICRM_DIRECTORY=$FALLBACK_CIVICRM_DIRECTORY
-fi
-
-cd $SITEDIR/../..
-git reset HEAD sites/all/modules/civicrm
-rm -rf sites/all/modules/civicrm
-git checkout -- sites/all/modules/civicrm 
-
-sudo_rm -rf sites/default/files/civicrm/templates_c/*
-sudo_rm -rf sites/default/files/civicrm/ConfigAndLog/*
-
-# Restore civicrm.settings.php file from preupgrade copy.
-cp sites/default/civicrm.settings.php{-preupgrade,}
-
-# Run CHMOD_CMD if any.
-chmod_files
 
