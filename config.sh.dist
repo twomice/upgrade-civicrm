@@ -34,6 +34,7 @@ MYSQL_ROOT_PASSWORD=""
 # on those modules, and so on. This is required because this 
 # string will be used for re-enabling modules after the the
 # upgrade completes.
+# IMPORTANT: Do not include the 'civicrm' module in this list.
 CIVICRM_MODULES=""
 
 # OPTIONAL: 
