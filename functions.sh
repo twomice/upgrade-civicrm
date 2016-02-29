@@ -56,13 +56,13 @@ version_compare() {
 #echo "v2 part $i: ${VERSION2[i]}"
 
       # If the version1 part is greater than its corresponding
-      # version2 part, return 0.
-      if [[ 10#${VERSION1[i]} > 10#${VERSION2[i]} ]]; then
+      # version2 part, return 2.
+      if [[ 10#${VERSION1[i]} -gt 10#${VERSION2[i]} ]]; then
         RESULT=2
         break;
       # If the version1 part is less than its corresponding
-      # version2 part, return 1.
-      elif [[ 10#${VERSION1[i]} < 10#${VERSION2[i]} ]]; then
+      # version2 part, return 0.
+      elif [[ 10#${VERSION1[i]} -lt 10#${VERSION2[i]} ]]; then
         RESULT=0
         break;
       fi
@@ -74,9 +74,9 @@ version_compare() {
       RESULT=1
     fi
   fi
-#echo "args: $1 $2 $3: $RESULT"
-#echo "vars: $VERSION1 $OP $VERSION2: $RESULT"
-#echo "result: $RESULT; op $OP"
+#echo "args: $1 $2 $3; result: $RESULT"
+#echo "vars: $VERSION1 $OP $VERSION2; result: $RESULT"
+#echo "result: $RESULT; op: $OP"
 
   case $OP in
     '='|'==') 
