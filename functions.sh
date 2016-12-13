@@ -31,6 +31,14 @@ version_compare() {
   # Initialize local variables.
   local i VERSION1=($1) OP=($2) VERSION2=($3)
 
+#echo "==="
+#echo "1: $1"
+#echo "2: $2"
+#echo "3: $3"
+#echo "version1: $VERSION1"
+#echo "version2: $VERSION2"
+#echo "op: $OP"
+
   # If versions are identical, return 1.
   if [[ $1 == $3 ]]; then
     RESULT=1
@@ -51,7 +59,6 @@ version_compare() {
       if [[ -z ${VERSION2[i]} ]]; then
         VERSION2[i]=0
       fi
-#echo
 #echo "v1 part $i: ${VERSION1[i]}"
 #echo "v2 part $i: ${VERSION2[i]}"
 

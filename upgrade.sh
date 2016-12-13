@@ -142,9 +142,9 @@ fi
 
 # Now that all interim versions have been upgraded, 
 # if TARGET_VERSION is greater than the highest
-# completed interim version, upgrade to actual 
-# TARGET_VERSION.
-if version_compare $INTERIM_VERSION_DONE "<" $TARGET_VERSION; then 
+# completed interim version, or if we never needed 
+# an interim version, upgrade to actual TARGET_VERSION.
+if [ -z "$INTERIM_VERSION_DONE" ] || version_compare $INTERIM_VERSION_DONE "<" $TARGET_VERSION; then 
   do_upgrade $TARGET_VERSION
 fi
 
