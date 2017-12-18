@@ -19,6 +19,13 @@ if [[ "${TARGET_VERSION}x" == "x" || "${SITEDIR}x" == "x" ]]; then
   exit 
 fi
 
+# Ensure SITEDIR exists and contains civicrm.settings.php.
+if [[ ! -e "$SITEDIR/civicrm.settings.php" ]]; then
+  echo "Directory $SITEDIR does not contain civicrm.settings.php. "
+  echo "  Please make the correction in config.sh and try again. Exiting."
+  exit
+fi
+
 # Include functions script.
 if [[ -e ${MYDIR}/functions.sh ]]; then
   source ${MYDIR}/functions.sh
