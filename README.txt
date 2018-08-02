@@ -1,6 +1,6 @@
 upgrade_civicrm
 
-Bash script to upgrade CiviCRM from the command line.
+Bash script to upgrade CiviCRM from the command line, on Drupal sites.
 
 ===================
 CONFIGURATION
