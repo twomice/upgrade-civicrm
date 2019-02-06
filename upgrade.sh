@@ -11,19 +11,19 @@ if [ -e ${MYDIR}/config.sh ]; then
   source ${MYDIR}/config.sh
 else
   echo "Could not find required config file at ${MYDIR}/config.sh. Exiting."
-  exit
+  exit 1
 fi
 
 if [[ "${TARGET_VERSION}x" == "x" || "${SITEDIR}x" == "x" ]]; then
   echo "Missing required settings in config.sh. Please edit the file and try again. Exiting."
-  exit 
+  exit 1
 fi
 
 # Ensure SITEDIR exists and contains civicrm.settings.php.
 if [[ ! -e "$SITEDIR/civicrm.settings.php" ]]; then
   echo "Directory $SITEDIR does not contain civicrm.settings.php. "
   echo "  Please make the correction in config.sh and try again. Exiting."
-  exit
+  exit 1
 fi
 
 # Include functions script.
@@ -31,7 +31,7 @@ if [[ -e ${MYDIR}/functions.sh ]]; then
   source ${MYDIR}/functions.sh
 else 
   echo "Could not find required functions file at ${MYDIR}/functions.sh. Exiting."
-  exit
+  exit 1
 fi
 
 # Confirm that the config file version matches the code version.
