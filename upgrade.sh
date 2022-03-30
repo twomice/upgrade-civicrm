@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # run in tmux, screen, or similar.
 
 # Full system path to the directory containing this file, with trailing slash.
@@ -104,7 +106,10 @@ if ! version_compare $TARGET_VERSION ">" $CURRENT_VERSION ; then
 fi
 
 echo "Backing up civicrm.settings.php to civicrm.settings.php-preupgrade"
-cp ${SITEDIR}/civicrm.settings.php{,-preupgrade}
+perms=$(stat -c '%a' ${SITEDIR});
+chmod a+w ${SITEDIR}
+cp -pf ${SITEDIR}/civicrm.settings.php{,-preupgrade}
+chmod $perms ${SITEDIR}
 
 # Store durable values so we only have to check them once.
 DRUPAL_VERSION=$(print_drupal_version)

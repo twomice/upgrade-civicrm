@@ -140,9 +140,9 @@ do_upgrade() {
 
   echo "Upgrading to ${UPGRADE_VERSION}"
 
+  mkdir -p ${MYDIR}/downloads || exit 1;
 
-  mkdir -p ${MYDIR}/downloads
-  EXTRACT_DIRECTORY=$(mktemp -d $MYDIR/downloads/extract_XXX)
+  EXTRACT_DIRECTORY=$(mktemp -d $MYDIR/downloads/extract_XXX) || exit 1;
 
   echo "Fetching source for ${UPGRADE_VERSION}"
   download_and_extract_tarball $UPGRADE_VERSION $EXTRACT_DIRECTORY
