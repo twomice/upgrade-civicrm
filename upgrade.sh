@@ -28,6 +28,9 @@ if [[ ! -e "$SITEDIR/civicrm.settings.php" ]]; then
   exit 1
 fi
 
+# Strip civicrm from CIVICRM_MODULES, just in case.
+CIVICRM_MODULES=$(echo $CIVICRM_MODULES | sed -e 's/\bcivicrm\b,*//g');
+
 # Include functions script.
 if [[ -e ${MYDIR}/functions.sh ]]; then
   source ${MYDIR}/functions.sh
