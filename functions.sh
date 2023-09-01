@@ -301,7 +301,7 @@ download_and_extract_tarball() {
 
   while [[ "$DOWNLOAD_ATTEMPTS" < "$MAX_DOWNLOAD_ATTEMPTS" && "$DOWNLOAD_SUCCESSFUL" == "0" ]]; do
     cd ${MYDIR}/downloads
-    wget -nc http://sourceforge.net/projects/civicrm/files/civicrm-stable/${UPGRADE_VERSION}/${TARBALL}/download -O ${TARBALL}
+    wget -nc https://download.civicrm.org/${TARBALL} -O ${TARBALL}
     # Increment DOWNLOAD_ATTEMPTS counter.
     DOWNLOAD_ATTEMPTS=$((DOWNLOAD_ATTEMPTS+1))
 
